@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from debug_logger import debug_log, print_workflow_stage, print_workflow_summary
 from tools import (
     calculate_match_score,
     compare_experience,
@@ -100,13 +101,21 @@ def execute_tool(name, arguments):
 
 
 def run_agent(user_message, max_steps=8):
+    print_workflow_summary(user_message)
     history = [
         types.Content(role="user", parts=[types.Part.from_text(text=user_message)])
     ]
 
     for step in range(1, max_steps + 1):
-        print(f"\n{'=' * 60}\nAGENT ITERATION {step}\n{'=' * 60}")
-        print("[THINK / DECIDE] Sending context and tool descriptions to Gemini")
+        print_workflow_stage(
+            "AGENT ITERATION",
+            f"Step {step}: THINK / DECIDE",
+            {
+                "model": MODEL,
+                "history_messages": len(history),
+                "available_tools": sorted(AVAILABLE_TOOLS.keys()),
+            },
+        )
 
         response = client.models.generate_content(
             model=MODEL, contents=history, config=CONFIG
@@ -121,24 +130,23 @@ def run_agent(user_message, max_steps=8):
             for part in (assistant_content.parts or [])
             if part.function_call is not None
         ]
-        print(f"[MODEL DECISION] Requested {len(calls)} tool(s)")
+        debug_log("MODEL DECISION", f"Gemini requested {len(calls)} tool(s)", [call.name for call in calls])
 
         if not calls:
             answer = response.text or ""
-            print("\n[FINAL ANSWER]\n" + answer)
+            print_workflow_stage("FINAL ANSWER", "Agent finished without more tool calls.", answer)
             return answer
 
         observations = []
         for call in calls:
             name = call.name
             args = dict(call.args or {})
-            print(f"\n[ACTION] {name}")
-            print("Arguments:", json.dumps(args, indent=2))
+            print_workflow_stage("ACTION", f"Executing {name}", args)
             try:
                 result = execute_tool(name, args)
             except (ValueError, TypeError) as exc:
                 result = {"error": str(exc)}
-            print("[OBSERVATION]", json.dumps(result, indent=2))
+            debug_log("OBSERVATION", f"Tool result for {name}", result)
             observations.append(
                 types.Part.from_function_response(
                     name=name, response={"result": result}
@@ -146,7 +154,11 @@ def run_agent(user_message, max_steps=8):
             )
 
         history.append(types.Content(role="user", parts=observations))
-        print("[FEEDBACK] Observations added to history for the next decision")
+        print_workflow_stage(
+            "FEEDBACK",
+            "Tool observations were appended to the conversation history.",
+            {"next_step": "Send observations back to Gemini for the next decision"},
+        )
 
     raise RuntimeError("Agent stopped: maximum iterations reached")
 
