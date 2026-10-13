@@ -2,7 +2,7 @@ from typing_extensions import NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from workflow_debug import show_graph, show_update
+from workflow_debug import reset_steps, show_graph, show_update
 
 
 class JobState(TypedDict):
@@ -17,23 +17,18 @@ class JobState(TypedDict):
 
 def validate_input(state: JobState) -> dict[str, bool]:
     missing = not state.get("candidate_skills") or not state.get("required_skills")
-    print(f"[NODE ACTION] validate_input found missing data: {missing}")
     return {"missing_input": missing}
 
 
 def route_after_validation(state: JobState) -> str:
-    path = "request_details" if state["missing_input"] else "compare_skills"
-    print(f"[CONDITIONAL EDGE] validate_input → {path}")
-    return path
+    return "request_details" if state["missing_input"] else "compare_skills"
 
 
 def request_details(state: JobState) -> dict[str, str]:
-    print("[NODE ACTION] request_details asks for both skill lists")
     return {"report": "Please provide both your skills and the job requirements."}
 
 
 def compare_skills_node(state: JobState) -> dict[str, object]:
-    print("[NODE ACTION] compare_skills compares normalized skill sets")
     candidate = {skill.strip().lower() for skill in state["candidate_skills"]}
     required = {skill.strip().lower() for skill in state["required_skills"]}
     matched = sorted(candidate & required)
@@ -47,7 +42,6 @@ def compare_skills_node(state: JobState) -> dict[str, object]:
 
 
 def make_report(state: JobState) -> dict[str, str]:
-    print("[NODE ACTION] make_report formats the comparison result")
     report = (
         f"Match: {state['match_percentage']}% | "
         f"Matched: {', '.join(state['matched_skills']) or 'none'} | "
@@ -74,19 +68,23 @@ graph = builder.compile()
 
 
 def run_example(title: str, example: JobState) -> None:
-    print(f"\n\n### {title}")
-    print("[INPUT STATE]", example)
+    print(f"\n{title}")
+    print("Input:", example)
     report = None
+    reset_steps()
     for update in graph.stream(example, stream_mode="updates"):
         show_update(update)
         for values in update.values():
             if "report" in values:
                 report = values["report"]
-    print("[FINAL REPORT]", report)
+    print("Final:", report)
 
 
 if __name__ == "__main__":
-    show_graph(graph, "DETERMINISTIC JOB WORKFLOW WITH CONDITIONAL ROUTING")
+    show_graph(
+        graph,
+        "validate_input → (request_details OR compare_skills → make_report)",
+    )
     run_example(
         "Complete requirements branch",
         {

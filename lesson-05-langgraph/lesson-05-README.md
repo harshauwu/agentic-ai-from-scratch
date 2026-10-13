@@ -371,6 +371,46 @@ This lesson's `graph.invoke(...)` runs with a fresh input. **It does not provide
 
 ## 7. Debugging and visualization
 
+### See the workflow as a diagram
+
+Open this README in VS Code and choose **Markdown: Open Preview** (or press
+`Cmd+Shift+V`). The diagrams below show the nodes and arrows before you run the
+code. While running an example, the terminal prints each node in order as
+`Step 1`, `Step 2`, and so on.
+
+**01 — Fixed graph**
+
+```mermaid
+flowchart LR
+    START --> greet --> finish --> END
+```
+
+**02 — Job workflow with a conditional edge**
+
+```mermaid
+flowchart TD
+    START --> validate_input
+    validate_input -->|missing data| request_details
+    validate_input -->|complete data| compare_skills
+    compare_skills --> make_report
+    request_details --> END
+    make_report --> END
+```
+
+**03 — Gemini tool-calling agent loop**
+
+```mermaid
+flowchart TD
+    START --> assistant
+    assistant -->|tool requested| tools
+    tools -->|tool result| assistant
+    assistant -->|no tool requested| END
+```
+
+Follow the arrows from `START`. The label on a conditional arrow explains why
+that route is taken. In the agent graph, Gemini's assistant node either routes
+to the tools node and loops back with the result, or finishes at `END`.
+
 For a quick view of the graph structure, add to either graph script after `compile()`:
 
 ```python

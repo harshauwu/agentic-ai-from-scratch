@@ -2,7 +2,7 @@ from typing_extensions import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from workflow_debug import show_graph, show_update
+from workflow_debug import reset_steps, show_graph, show_update
 
 
 class State(TypedDict):
@@ -10,12 +10,10 @@ class State(TypedDict):
 
 
 def greet(state: State) -> dict[str, str]:
-    print("[NODE ACTION] greet reads the current message")
     return {"message": state["message"] + " I am"}
 
 
 def finish(state: State) -> dict[str, str]:
-    print("[NODE ACTION] finish adds the final phrase")
     return {"message": state["message"] + " learning LangGraph!"}
 
 
@@ -29,13 +27,14 @@ graph = builder.compile()
 
 
 if __name__ == "__main__":
-    show_graph(graph, "FIRST GRAPH: START → greet → finish → END")
+    show_graph(graph, "greet → finish")
     initial_state = {"message": "Hello."}
-    print("\n[INPUT STATE]", initial_state)
+    print("Input:", initial_state)
     final_state = None
+    reset_steps()
     for update in graph.stream(initial_state, stream_mode="updates"):
         show_update(update)
         for values in update.values():
             if "message" in values:
                 final_state = values["message"]
-    print("\n[FINAL]", {"message": final_state})
+    print("Final:", {"message": final_state})
